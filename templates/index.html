@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}SOLE/AI — AI Sneaker Design Studio{% endblock %}
+
+{% block content %}
+
+<!-- ── HERO ─────────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="hero-bg">
+    <div class="hero-grid"></div>
+    <div class="hero-glow"></div>
+  </div>
+
+  <div class="hero-content">
+    <div class="hero-eyebrow">
+      <span class="dot"></span>
+      AI-Powered Design Studio
+    </div>
+    <h1 class="hero-title">
+      Design Your<br>
+      <span class="title-accent">Perfect</span><br>
+      Sneaker
+    </h1>
+    <p class="hero-sub">
+      Describe your vision. Our AI generates a complete sneaker concept —
+      colorways, materials, features, and a photorealistic render — in seconds.
+    </p>
+    <div class="hero-actions">
+      <a href="{{ url_for('studio') }}" class="btn-primary">Start Designing ⚡</a>
+      <a href="{{ url_for('history') }}" class="btn-ghost">View History →</a>
+    </div>
+  </div>
+
+  <div class="hero-visual">
+    <div class="sneaker-float">
+      {% include "sneaker_svg.html" %}
+    </div>
+    <span class="visual-label">AI Generated · Every pair unique</span>
+  </div>
+</section>
+
+<!-- ── FEATURES ──────────────────────────────────────────────────── -->
+<section class="features">
+  <div class="section-header">
+    <h2 class="section-title">How It Works</h2>
+    <div class="section-line"></div>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card" style="--delay: 0s">
+      <div class="feature-num">01</div>
+      <h3 class="feature-title">Describe</h3>
+      <p class="feature-desc">Choose your style, material, occasion, and colors. Add a theme for extra inspiration.</p>
+    </div>
+    <div class="feature-card" style="--delay: 0.1s">
+      <div class="feature-num">02</div>
+      <h3 class="feature-title">Generate</h3>
+      <p class="feature-desc">AI crafts a full sneaker concept — name, tagline, colorways, and specs.</p>
+    </div>
+    <div class="feature-card" style="--delay: 0.2s">
+      <div class="feature-num">03</div>
+      <h3 class="feature-title">Visualize</h3>
+      <p class="feature-desc">AI renders a photorealistic product image of your design.</p>
+    </div>
+    <div class="feature-card" style="--delay: 0.3s">
+      <div class="feature-num">04</div>
+      <h3 class="feature-title">Explore</h3>
+      <p class="feature-desc">Switch between 3 colorway variations with the live SVG colorway explorer.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── STATS ─────────────────────────────────────────────────────── -->
+<section class="stats">
+  <div class="stat-item">
+    <span class="stat-num">3</span>
+    <span class="stat-label">Colorways per design</span>
+  </div>
+  <div class="stat-divider"></div>
+  <div class="stat-item">
+    <span class="stat-num">~5s</span>
+    <span class="stat-label">Concept generation</span>
+  </div>
+  <div class="stat-divider"></div>
+  <div class="stat-item">
+    <span class="stat-num">AI</span>
+    <span class="stat-label">Image model</span>
+  </div>
+  <div class="stat-divider"></div>
+  <div class="stat-item">
+    <span class="stat-num">∞</span>
+    <span class="stat-label">Unique designs</span>
+  </div>
+</section>
+
+{% endblock %}

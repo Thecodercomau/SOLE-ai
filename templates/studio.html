@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}Studio — SOLE/AI{% endblock %}
+
+{% block content %}
+
+<section class="studio-page">
+
+  <!-- ── LEFT: FORM PANEL ─────────────────────────────────────────── -->
+  <aside class="form-panel">
+    <div class="panel-header">
+      <h2 class="panel-title">Design Brief</h2>
+      <p class="panel-sub">Tell the AI what you're envisioning.</p>
+    </div>
+
+    <div class="form-body" id="designForm">
+
+      <!-- Style -->
+      <div class="form-group">
+        <label class="form-label">SILHOUETTE STYLE</label>
+        <div class="chip-group" data-field="style">
+          <button type="button" class="chip active" data-value="casual">Casual</button>
+          <button type="button" class="chip" data-value="athletic">Athletic</button>
+          <button type="button" class="chip" data-value="luxury">Luxury</button>
+          <button type="button" class="chip" data-value="retro">Retro</button>
+          <button type="button" class="chip" data-value="futuristic">Futuristic</button>
+          <button type="button" class="chip" data-value="streetwear">Streetwear</button>
+        </div>
+        <input type="hidden" id="style" value="casual" />
+      </div>
+
+      <!-- Material -->
+      <div class="form-group">
+        <label class="form-label">PRIMARY MATERIAL</label>
+        <div class="chip-group" data-field="material">
+          <button type="button" class="chip active" data-value="leather">Leather</button>
+          <button type="button" class="chip" data-value="canvas">Canvas</button>
+          <button type="button" class="chip" data-value="mesh">Mesh</button>
+          <button type="button" class="chip" data-value="suede">Suede</button>
+          <button type="button" class="chip" data-value="knit">Knit</button>
+          <button type="button" class="chip" data-value="recycled">Recycled</button>
+        </div>
+        <input type="hidden" id="material" value="leather" />
+      </div>
+
+      <!-- Occasion -->
+      <div class="form-group">
+        <label class="form-label">OCCASION</label>
+        <div class="chip-group" data-field="occasion">
+          <button type="button" class="chip active" data-value="everyday">Everyday</button>
+          <button type="button" class="chip" data-value="running">Running</button>
+          <button type="button" class="chip" data-value="basketball">Basketball</button>
+          <button type="button" class="chip" data-value="hiking">Hiking</button>
+          <button type="button" class="chip" data-value="formal">Formal</button>
+          <button type="button" class="chip" data-value="limited-edition">Limited Ed.</button>
+        </div>
+        <input type="hidden" id="occasion" value="everyday" />
+      </div>
+
+      <!-- Colors -->
+      <div class="form-group form-group--colors">
+        <div class="color-col">
+          <label class="form-label" for="primary_color">PRIMARY COLOR</label>
+          <div class="color-input-wrap">
+            <input type="color" id="primary_color" value="#1a1a2e" class="color-swatch" />
+            <input type="text" id="primary_color_text" value="#1a1a2e" class="color-hex" maxlength="7" />
+          </div>
+        </div>
+        <div class="color-col">
+          <label class="form-label" for="accent_color">ACCENT COLOR</label>
+          <div class="color-input-wrap">
+            <input type="color" id="accent_color" value="#e2b714" class="color-swatch" />
+            <input type="text" id="accent_color_text" value="#e2b714" class="color-hex" maxlength="7" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Inspiration -->
+      <div class="form-group">
+        <label class="form-label" for="inspiration">INSPIRATION / THEME</label>
+        <textarea id="inspiration" class="form-textarea" rows="3"
+          placeholder="e.g. Tokyo neon nights, vintage basketball, deep ocean, brutalist architecture…"></textarea>
+      </div>
+
+      <!-- Submit -->
+      <button class="btn-generate" id="generateBtn" type="button">
+        <span class="btn-text">Generate Concept</span>
+        <span class="btn-icon">⚡</span>
+      </button>
+
+      <p class="form-error" id="formError"></p>
+    </div>
+  </aside>
+
+  <!-- ── CAPTCHA MODAL ─────────────────────────────────────────────── -->
+  <div id="captchaModal" class="captcha-modal hidden">
+    <div class="captcha-modal-box">
+      <p class="captcha-modal-title">Verify you're human</p>
+      <div id="hcaptchaWidget"></div>
+      <button class="captcha-modal-cancel" id="captchaCancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ── RIGHT: OUTPUT PANEL ──────────────────────────────────────── -->
+  <section class="output-panel" id="outputPanel">
+
+    <!-- Empty state -->
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">
+        <svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" width="80" height="80">
+          <circle cx="40" cy="40" r="38" stroke="var(--border)" fill="none" stroke-width="1.5" stroke-dasharray="6 4"/>
+          <text x="40" y="46" text-anchor="middle" font-size="28">👟</text>
+        </svg>
+      </div>
+      <h3 class="empty-title">No concept yet</h3>
+      <p class="empty-sub">Fill in the brief and hit <strong>Generate Concept</strong> to bring your sneaker to life.</p>
+      <div class="empty-pipeline">
+        <div class="pipeline-step">
+          <span class="pipeline-icon">⚡</span>
+          <span class="pipeline-label">AI generates concept</span>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">
+          <span class="pipeline-icon">🎨</span>
+          <span class="pipeline-label">AI renders image</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading state -->
+    <div class="loading-state hidden" id="loadingState">
+      <div class="loader-ring"></div>
+      <p class="loader-text" id="loaderText">Synthesizing design…</p>
+      <div class="loader-stage" id="loaderStage">
+        <span class="stage-pill stage-pill--active" id="stageGroq">⚡ Concept</span>
+        <span class="stage-arrow">→</span>
+        <span class="stage-pill" id="stageHF">🎨 Image</span>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div class="result hidden" id="result">
+
+      <!-- Concept header -->
+      <div class="result-header">
+        <div class="result-header-text">
+          <p class="result-eyebrow" id="resultTags"></p>
+          <h2 class="result-name" id="resultName"></h2>
+          <p class="result-tagline" id="resultTagline"></p>
+        </div>
+        <div class="result-meta">
+          <span class="meta-pill" id="resultPrice"></span>
+          <span class="meta-pill meta-pill--light" id="resultAudience"></span>
+        </div>
+      </div>
+
+      <!-- ── AI-Generated Image (HuggingFace SDXL) ── -->
+      <div class="ai-image-section" id="aiImageSection">
+        <div class="ai-image-header">
+          <span class="ai-image-label">
+            <span class="hf-dot"></span> AI Generated Image
+          </span>
+          <button class="btn-regen-img hidden" id="regenImgBtn">Regenerate Image ↺</button>
+        </div>
+
+        <!-- Loading -->
+        <div class="img-loading" id="imgLoading">
+          <div class="img-loader-bar"><div class="img-loader-fill"></div></div>
+          <p class="img-loader-text">Rendering image…</p>
+        </div>
+
+        <!-- Image display -->
+        <div class="img-frame hidden" id="imgFrame">
+          <img id="aiImage" src="" alt="AI-generated sneaker" class="ai-img" />
+          <div class="img-overlay-badge">AI Generated</div>
+        </div>
+
+        <!-- Image error -->
+        <div class="img-error hidden" id="imgError">
+          <span class="img-error-icon">⚠️</span>
+          <p class="img-error-text" id="imgErrorText">Image generation unavailable.</p>
+        </div>
+      </div>
+
+      <!-- Sneaker SVG visual with colorway controls -->
+      <div class="visual-section">
+        <div class="visual-section-label">SVG Colorway Explorer</div>
+        <div class="colorway-tabs" id="colorwayTabs"></div>
+        <div class="sneaker-stage" id="sneakerStage">
+          {% include "sneaker_svg.html" %}
+        </div>
+        <div class="colorway-info" id="colorwayInfo"></div>
+      </div>
+
+      <!-- Description -->
+      <div class="result-desc" id="resultDesc"></div>
+
+      <!-- Details grid -->
+      <div class="details-grid">
+        <div class="detail-card">
+          <h4 class="detail-title">Materials</h4>
+          <ul class="detail-list" id="materialsList"></ul>
+        </div>
+        <div class="detail-card">
+          <h4 class="detail-title">Key Features</h4>
+          <ul class="detail-list" id="featuresList"></ul>
+        </div>
+        <div class="detail-card">
+          <h4 class="detail-title">Sole System</h4>
+          <p class="detail-text" id="soleText"></p>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="result-actions">
+        <button class="btn-regen" id="regenBtn">New Concept ↺</button>
+        <a href="{{ url_for('history') }}" class="btn-ghost-sm">View History →</a>
+      </div>
+    </div>
+
+  </section>
+
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Make site key available to studio.js
+  window.HCAPTCHA_SITE_KEY = "{{ hcaptcha_site_key }}";
+</script>
+<script src="{{ url_for('static', filename='js/studio.js') }}"></script>
+{% endblock %}
+

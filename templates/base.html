@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}SOLE/AI — Sneaker Design Studio{% endblock %}</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Barlow:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- hCaptcha -->
+  <script src="https://js.hcaptcha.com/1/api.js?render=explicit&onload=hcaptchaReady" async defer></script>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+
+  {% block head %}{% endblock %}
+
+  <script>
+    // Redirect to home on page refresh (but not on first load or navigation)
+    (function () {
+      const nav = window.performance && window.performance.getEntriesByType('navigation')[0];
+      const isReload = nav ? nav.type === 'reload' : (window.performance && window.performance.navigation.type === 1);
+      if (isReload && window.location.pathname !== '/') {
+        window.location.replace('/');
+      }
+    })();
+  </script>
+</head>
+<body>
+
+  <!-- ── NAV ─────────────────────────────────────────────────────── -->
+  <nav class="nav">
+    <a href="{{ url_for('index') }}" class="nav-logo">
+      SOLE<span class="logo-slash">/</span>AI
+    </a>
+    <ul class="nav-links">
+      <li><a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">Home</a></li>
+      <li><a href="{{ url_for('studio') }}" class="nav-link {% if request.endpoint == 'studio' %}active{% endif %}">Studio</a></li>
+      <li><a href="{{ url_for('history') }}" class="nav-link {% if request.endpoint == 'history' %}active{% endif %}">History</a></li>
+    </ul>
+    <a href="{{ url_for('studio') }}" class="nav-cta">Design Now →</a>
+  </nav>
+
+  <!-- ── PAGE CONTENT ─────────────────────────────────────────────── -->
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- ── FOOTER ───────────────────────────────────────────────────── -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <span class="footer-logo">SOLE<span class="logo-slash">/</span>AI</span>
+      <span class="footer-copy">AI-powered sneaker design. Every pair, unique.</span>
+    </div>
+  </footer>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>
