@@ -1,6 +1,4 @@
-/* LESSON 2 — Generating Sneaker Concepts with AI
-   Goal: Send form data to /generate (no captcha yet) and display
-   the AI-generated concept name, tagline, description, and details. */
+/* Generate sneaker concepts after hCaptcha verification. */
 
 (function () {
   'use strict';
@@ -40,15 +38,13 @@
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  // ── Generate — no captcha, direct fetch ─────────────────────────
-  generateBtn && generateBtn.addEventListener('click', async () => {
-    formError.textContent = '';
-    generateBtn.disabled = true;
-    emptyState  && emptyState.classList.add('hidden');
-    result      && result.classList.add('hidden');
-    loadingState && loadingState.classList.remove('hidden');
+  const captchaModal = document.getElementById('captchaModal');
+  const captchaCancel = document.getElementById('captchaCancel');
+  let captchaWidgetId = null;
+  let captchaApiReady = false;
 
-    const prefs = {
+  function collectPrefs() {
+    return {
       style:         document.getElementById('style').value,
       material:      document.getElementById('material').value,
       occasion:      document.getElementById('occasion').value,
@@ -56,20 +52,28 @@
       accent_color:  document.getElementById('accent_color').value,
       inspiration:   document.getElementById('inspiration').value.trim(),
     };
+  }
+
+  async function runGeneration(token) {
+    const prefs = collectPrefs();
+    generateBtn.disabled = true;
+    emptyState  && emptyState.classList.add('hidden');
+    result      && result.classList.add('hidden');
+    loadingState && loadingState.classList.remove('hidden');
 
     try {
       const resp = await fetch('/generate', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(prefs),
+        body:    JSON.stringify({ ...prefs, 'h-captcha-response': token }),
       });
       const data = await resp.json();
 
       loadingState && loadingState.classList.add('hidden');
 
-      if (data.error) {
+      if (!resp.ok || data.error) {
         emptyState && emptyState.classList.remove('hidden');
-        formError.textContent = data.error;
+        formError.textContent = data.error || 'Concept generation failed.';
       } else {
         const c = data.concept;
         result && result.classList.remove('hidden');
@@ -87,15 +91,80 @@
       loadingState && loadingState.classList.add('hidden');
       emptyState   && emptyState.classList.remove('hidden');
       formError.textContent = 'Network error: ' + err.message;
+    } finally {
+      generateBtn.disabled = false;
+      if (typeof hcaptcha !== 'undefined' && captchaWidgetId !== null) {
+        hcaptcha.reset(captchaWidgetId);
+      }
     }
-
-    generateBtn.disabled = false;
-  });
+  }
 
   document.getElementById('regenBtn') && document.getElementById('regenBtn').addEventListener('click', () => {
     result     && result.classList.add('hidden');
     emptyState && emptyState.classList.remove('hidden');
     formError.textContent = '';
+  });
+
+  function renderCaptcha() {
+    captchaWidgetId = hcaptcha.render('hcaptchaWidget', {
+      sitekey: window.HCAPTCHA_SITE_KEY,
+      theme: 'dark',
+      size: 'compact',
+      callback: token => {
+        captchaModal.classList.add('hidden');
+        runGeneration(token);
+      },
+      'expired-callback': () => {
+        captchaModal.classList.add('hidden');
+        generateBtn.disabled = false;
+        formError.textContent = 'CAPTCHA expired. Please try again.';
+      },
+      'error-callback': () => {
+        captchaModal.classList.add('hidden');
+        generateBtn.disabled = false;
+        formError.textContent = 'CAPTCHA could not be verified. Please try again.';
+      },
+    });
+  }
+
+  window.hcaptchaReady = () => {
+    captchaApiReady = true;
+    if (!window.HCAPTCHA_SITE_KEY) {
+      formError.textContent = 'CAPTCHA is not configured. Please contact the site owner.';
+    }
+  };
+
+  generateBtn && generateBtn.addEventListener('click', () => {
+    formError.textContent = '';
+    if (!window.HCAPTCHA_SITE_KEY) {
+      formError.textContent = 'CAPTCHA is not configured. Please contact the site owner.';
+      return;
+    }
+    if (!captchaApiReady || typeof hcaptcha === 'undefined') {
+      formError.textContent = 'CAPTCHA is still loading. Please try again in a moment.';
+      return;
+    }
+    generateBtn.disabled = true;
+    captchaModal.classList.remove('hidden');
+    if (captchaWidgetId === null) {
+      window.requestAnimationFrame(() => {
+        if (!captchaModal.classList.contains('hidden')) renderCaptcha();
+      });
+    } else {
+      hcaptcha.reset(captchaWidgetId);
+    }
+  });
+
+  captchaCancel && captchaCancel.addEventListener('click', () => {
+    captchaModal.classList.add('hidden');
+    generateBtn.disabled = false;
+    if (typeof hcaptcha !== 'undefined' && captchaWidgetId !== null) {
+      hcaptcha.reset(captchaWidgetId);
+    }
+  });
+
+  document.getElementById('hcaptchaApi')?.addEventListener('error', () => {
+    formError.textContent = 'CAPTCHA failed to load. Check your connection and try again.';
   });
 
 })();

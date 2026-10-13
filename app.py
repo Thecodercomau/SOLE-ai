@@ -1,4 +1,4 @@
-import os, json
+import os, json, requests
 from flask import Flask, render_template, request, jsonify
 from groq import Groq
 from dotenv import load_dotenv
@@ -7,8 +7,10 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = 'sneaker-studio-dev-key' 
 GROQ_API_KEY      = os.environ.get("GROQ_API_KEY")
-GROQ_MODEL        = os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b")
+GROQ_MODEL        = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 HCAPTCHA_SITE_KEY = os.environ.get("HCAPTCHA_SITE_KEY", "")
+HCAPTCHA_SECRET   = os.environ.get("HCAPTCHA_SECRET", "")
+HCAPTCHA_VERIFY_URL = "https://api.hcaptcha.com/siteverify"
 groq_client       = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 DESIGN_PROMPT = """You are an expert sneaker designer. Generate a detailed concept based on:
@@ -54,7 +56,7 @@ def index():
 
 @app.route('/studio')
 def studio():
-    return render_template('studio.html', hcaptcha_site_key="")
+    return render_template('studio.html', hcaptcha_site_key=HCAPTCHA_SITE_KEY)
 
 @app.route("/history")
 def history():
@@ -63,6 +65,19 @@ def history():
 @app.route("/generate", methods=["POST"])
 def generate():
     data  = request.get_json(silent=True) or request.form
+    token = data.get("h-captcha-response")
+    if not isinstance(token, str) or not token.strip():
+        return jsonify({"error": "Please complete the CAPTCHA."}), 400
+    if not HCAPTCHA_SITE_KEY or not HCAPTCHA_SECRET:
+        app.logger.error("hCaptcha is not configured.")
+        return jsonify({"error": "CAPTCHA verification is not configured."}), 503
+    try:
+        captcha_valid = verify_hcaptcha(token)
+    except (requests.RequestException, ValueError) as exc:
+        app.logger.warning("hCaptcha verification failed: %s", exc)
+        return jsonify({"error": "CAPTCHA verification is temporarily unavailable. Please try again."}), 503
+    if not captcha_valid:
+        return jsonify({"error": "CAPTCHA verification failed."}), 400
     prefs = get_prefs(data)
     try:
         concept = generate_concept(prefs)
@@ -72,6 +87,21 @@ def generate():
         return jsonify({"error": f"Concept generation failed: {e}"}), 500
     return jsonify({"success": True, "concept": concept, "prefs": prefs})
 
+def verify_hcaptcha(token):
+    response = requests.post(
+        HCAPTCHA_VERIFY_URL,
+        data={
+            "secret": HCAPTCHA_SECRET,
+            "response": token,
+            "remoteip": request.remote_addr,
+        },
+        timeout=10,
+    )
+    response.raise_for_status()
+    verification = response.json()
+    if not isinstance(verification, dict) or not isinstance(verification.get("success"), bool):
+        raise ValueError("hCaptcha returned an invalid verification response.")
+    return verification["success"]
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
