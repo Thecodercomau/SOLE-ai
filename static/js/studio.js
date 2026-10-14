@@ -1,170 +1,155 @@
-/* Generate sneaker concepts after hCaptcha verification. */
-
 (function () {
   'use strict';
 
-  const generateBtn = document.getElementById('generateBtn');
-  const formError   = document.getElementById('formError');
-  const emptyState  = document.getElementById('emptyState');
-  const loadingState = document.getElementById('loadingState');
-  const result      = document.getElementById('result');
+  const $ = id => document.getElementById(id);
+  const generateBtn = $('generateBtn'), regenBtn = $('regenBtn'), regenImgBtn = $('regenImgBtn');
+  const formError = $('formError'), emptyState = $('emptyState'), loadingState = $('loadingState');
+  const loaderText = $('loaderText'), stageGroq = $('stageGroq'), stageHF = $('stageHF'), result = $('result');
+  const resultName = $('resultName'), resultTagline = $('resultTagline'), resultTags = $('resultTags');
+  const resultPrice = $('resultPrice'), resultAudience = $('resultAudience'), resultDesc = $('resultDesc');
+  const materialsList = $('materialsList'), featuresList = $('featuresList'), soleText = $('soleText');
+  const colorwayTabs = $('colorwayTabs'), colorwayInfo = $('colorwayInfo'), sneakerStage = $('sneakerStage');
+  const imgLoading = $('imgLoading'), imgFrame = $('imgFrame'), aiImage = $('aiImage');
+  const imgError = $('imgError'), imgErrorText = $('imgErrorText');
+  const captchaModal = $('captchaModal'), captchaCancel = $('captchaCancel');
 
-  // ── Chip selection ──────────────────────────────────────────────
-  document.querySelectorAll('.chip-group').forEach(group => {
-    const hiddenInput = document.getElementById(group.dataset.field);
-    group.querySelectorAll('.chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        group.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-        chip.classList.add('active');
-        if (hiddenInput) hiddenInput.value = chip.dataset.value;
-      });
+  const LOADER_MSGS = ['Querying AI…','Designing silhouette…','Choosing materials…','Mixing colorways…','Finalizing specs…'];
+  let loaderInterval = null, currentColorways = [], currentConcept = null, captchaWidgetId = null;
+
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  // ── hCaptcha ──────────────────────────────────────────────────────
+  window.hcaptchaReady = () => {
+    captchaWidgetId = hcaptcha.render('hcaptchaWidget', {
+      sitekey: window.HCAPTCHA_SITE_KEY, theme: 'dark', size: 'compact',
+      callback: token => { captchaModal.classList.add('hidden'); runGeneration(token); },
+      'expired-callback': () => { captchaModal.classList.add('hidden'); generateBtn.disabled = false; formError.textContent = 'CAPTCHA expired.'; },
     });
+  };
+
+  generateBtn?.addEventListener('click', () => {
+    formError.textContent = '';
+    if (typeof hcaptcha === 'undefined' || captchaWidgetId === null) { formError.textContent = 'CAPTCHA not loaded. Refresh.'; return; }
+    hcaptcha.reset(captchaWidgetId);
+    captchaModal.classList.remove('hidden');
+  });
+  captchaCancel?.addEventListener('click', () => { captchaModal.classList.add('hidden'); hcaptcha?.reset(captchaWidgetId); });
+
+  // ── Chips & colors ────────────────────────────────────────────────
+  document.querySelectorAll('.chip-group').forEach(g => {
+    const inp = $(g.dataset.field);
+    g.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
+      g.querySelectorAll('.chip').forEach(x => x.classList.remove('active'));
+      c.classList.add('active');
+      if (inp) inp.value = c.dataset.value;
+    }));
   });
 
-  // ── Color pickers ───────────────────────────────────────────────
-  function syncColorPair(pickerId, textId) {
-    const picker = document.getElementById(pickerId);
-    const text   = document.getElementById(textId);
-    if (!picker || !text) return;
-    picker.addEventListener('input', () => { text.value = picker.value; });
-    text.addEventListener('input', () => {
-      if (/^#[0-9A-Fa-f]{6}$/.test(text.value)) picker.value = text.value;
+  const syncColor = (pid, tid) => {
+    const p = $(pid), t = $(tid);
+    if (!p || !t) return;
+    p.addEventListener('input', () => t.value = p.value);
+    t.addEventListener('input', () => { if (/^#[0-9A-Fa-f]{6}$/.test(t.value)) p.value = t.value; });
+  };
+  syncColor('primary_color','primary_color_text');
+  syncColor('accent_color','accent_color_text');
+
+  const collectPrefs = () => ({
+    style: $('style').value, material: $('material').value, occasion: $('occasion').value,
+    primary_color: $('primary_color').value, accent_color: $('accent_color').value,
+    inspiration: $('inspiration').value.trim(),
+  });
+
+  // ── Loader ────────────────────────────────────────────────────────
+  const startLoader = () => { let i=0; loaderText.textContent=LOADER_MSGS[0]; loaderInterval=setInterval(()=>{ i=(i+1)%LOADER_MSGS.length; loaderText.textContent=LOADER_MSGS[i]; },1400); };
+  const stopLoader  = () => { clearInterval(loaderInterval); loaderInterval=null; };
+
+  const setUI = s => {
+    [emptyState,loadingState,result].forEach(el=>el.classList.add('hidden'));
+    ({empty:emptyState,loading:loadingState,result}[s])?.classList.remove('hidden');
+  };
+  const setStage = a => {
+    stageGroq?.classList.toggle('stage-pill--active', a==='groq');
+    stageHF?.classList.toggle('stage-pill--active', a==='hf');
+    stageGroq?.classList.toggle('stage-pill--done', a==='hf');
+  };
+
+  // ── Image helpers ─────────────────────────────────────────────────
+  const showImgLoading = () => { imgLoading?.classList.remove('hidden'); imgFrame?.classList.add('hidden'); imgError?.classList.add('hidden'); regenImgBtn?.classList.add('hidden'); };
+  const showImgResult  = url => { imgLoading?.classList.add('hidden'); imgError?.classList.add('hidden'); if(aiImage) aiImage.src=url; imgFrame?.classList.remove('hidden'); regenImgBtn?.classList.remove('hidden'); };
+  const showImgError   = msg => { imgLoading?.classList.add('hidden'); imgFrame?.classList.add('hidden'); if(imgErrorText) imgErrorText.textContent=msg||'Image generation failed.'; imgError?.classList.remove('hidden'); regenImgBtn?.classList.remove('hidden'); };
+
+  // ── Colorway SVG ──────────────────────────────────────────────────
+  const applyColorway = (cw, el) => {
+    const svg = el.querySelector('.sneaker-svg') || el;
+    [['--upper-color',cw.upper],['--panel-color',cw.sole],['--toe-color',cw.upper],
+     ['--accent-color',cw.accent],['--lace-color',cw.lace],['--midsole-color',cw.tongue]
+    ].forEach(([p,v]) => svg.style.setProperty(p, v||''));
+  };
+
+  const selectColorway = idx => {
+    colorwayTabs.querySelectorAll('.cw-tab').forEach((t,i) => t.classList.toggle('active',i===idx));
+    applyColorway(currentColorways[idx], sneakerStage);
+    colorwayInfo.innerHTML = [['Upper',currentColorways[idx].upper],['Sole',currentColorways[idx].sole],
+      ['Accent',currentColorways[idx].accent],['Lace',currentColorways[idx].lace],['Tongue',currentColorways[idx].tongue]]
+      .map(([l,c])=>`<div class="cw-color-item"><div class="cw-dot" style="background:${c}"></div>${l}: <strong style="color:var(--text)">${c}</strong></div>`).join('');
+  };
+
+  const buildColorwayTabs = cws => {
+    colorwayTabs.innerHTML = '';
+    cws.forEach((cw,i) => {
+      const btn = document.createElement('button');
+      btn.className = 'cw-tab' + (i===0?' active':'');
+      btn.innerHTML = `<span class="cw-swatch" style="background:${cw.upper}"></span><span class="cw-swatch" style="background:${cw.accent}"></span>${esc(cw.name)}`;
+      btn.addEventListener('click', () => selectColorway(i));
+      colorwayTabs.appendChild(btn);
     });
-  }
-  syncColorPair('primary_color', 'primary_color_text');
-  syncColorPair('accent_color',  'accent_color_text');
+  };
 
-  function escHtml(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
+  // ── Render concept ────────────────────────────────────────────────
+  const renderConcept = c => {
+    currentConcept = c;
+    resultName.textContent = c.name||''; resultTagline.textContent = c.tagline||'';
+    resultPrice.textContent = c.retail_price||''; resultAudience.textContent = c.target_audience||'';
+    resultDesc.textContent = c.description||''; resultTags.textContent = (c.style_tags||[]).join(' · ');
+    materialsList.innerHTML = (c.materials||[]).map(m=>`<li>${esc(m)}</li>`).join('');
+    featuresList.innerHTML  = (c.features||[]).map(f=>`<li>${esc(f)}</li>`).join('');
+    soleText.textContent = c.sole_type||'—';
+    currentColorways = c.colorways||[];
+    if (currentColorways.length) { buildColorwayTabs(currentColorways); selectColorway(0); }
+  };
 
-  const captchaModal = document.getElementById('captchaModal');
-  const captchaCancel = document.getElementById('captchaCancel');
-  let captchaWidgetId = null;
-  let captchaApiReady = false;
+  // ── Image fetch ───────────────────────────────────────────────────
+  const fetchImage = async prompt => {
+    setStage('hf'); showImgLoading();
+    try {
+      const r = await fetch('/generate-image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_prompt:prompt})});
+      const d = await r.json();
+      if (!r.ok||d.error) throw new Error(d.error||'Image generation failed');
+      showImgResult(d.image_url);
+    } catch(e) { showImgError(e.message); }
+  };
 
-  function collectPrefs() {
-    return {
-      style:         document.getElementById('style').value,
-      material:      document.getElementById('material').value,
-      occasion:      document.getElementById('occasion').value,
-      primary_color: document.getElementById('primary_color').value,
-      accent_color:  document.getElementById('accent_color').value,
-      inspiration:   document.getElementById('inspiration').value.trim(),
-    };
-  }
-
-  async function runGeneration(token) {
+  // ── Main flow ─────────────────────────────────────────────────────
+  const runGeneration = async token => {
     const prefs = collectPrefs();
     generateBtn.disabled = true;
-    emptyState  && emptyState.classList.add('hidden');
-    result      && result.classList.add('hidden');
-    loadingState && loadingState.classList.remove('hidden');
-
+    setUI('loading'); setStage('groq'); startLoader();
     try {
-      const resp = await fetch('/generate', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ ...prefs, 'h-captcha-response': token }),
-      });
-      const data = await resp.json();
-
-      loadingState && loadingState.classList.add('hidden');
-
-      if (!resp.ok || data.error) {
-        emptyState && emptyState.classList.remove('hidden');
-        formError.textContent = data.error || 'Concept generation failed.';
-      } else {
-        const c = data.concept;
-        result && result.classList.remove('hidden');
-        document.getElementById('resultName').textContent     = c.name || '';
-        document.getElementById('resultTagline').textContent  = c.tagline || '';
-        document.getElementById('resultDesc').textContent     = c.description || '';
-        document.getElementById('resultPrice').textContent    = c.retail_price || '';
-        document.getElementById('resultAudience').textContent = c.target_audience || '';
-        document.getElementById('resultTags').textContent     = (c.style_tags || []).join(' · ');
-        document.getElementById('materialsList').innerHTML    = (c.materials || []).map(m => `<li>${escHtml(m)}</li>`).join('');
-        document.getElementById('featuresList').innerHTML     = (c.features  || []).map(f => `<li>${escHtml(f)}</li>`).join('');
-        document.getElementById('soleText').textContent       = c.sole_type || '—';
-      }
-    } catch (err) {
-      loadingState && loadingState.classList.add('hidden');
-      emptyState   && emptyState.classList.remove('hidden');
-      formError.textContent = 'Network error: ' + err.message;
+      const r = await fetch('/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...prefs,'h-captcha-response':token})});
+      const d = await r.json();
+      if (!r.ok||d.error) throw new Error(d.error||'Server error');
+      stopLoader(); renderConcept(d.concept); setUI('result');
+      fetchImage(d.concept.image_prompt || `Premium ${prefs.style} sneaker, ${prefs.material}, studio photography, 8k`);
+    } catch(e) {
+      stopLoader(); setUI('empty'); formError.textContent = e.message||'Something went wrong.';
     } finally {
       generateBtn.disabled = false;
-      if (typeof hcaptcha !== 'undefined' && captchaWidgetId !== null) {
-        hcaptcha.reset(captchaWidgetId);
-      }
-    }
-  }
-
-  document.getElementById('regenBtn') && document.getElementById('regenBtn').addEventListener('click', () => {
-    result     && result.classList.add('hidden');
-    emptyState && emptyState.classList.remove('hidden');
-    formError.textContent = '';
-  });
-
-  function renderCaptcha() {
-    captchaWidgetId = hcaptcha.render('hcaptchaWidget', {
-      sitekey: window.HCAPTCHA_SITE_KEY,
-      theme: 'dark',
-      size: 'compact',
-      callback: token => {
-        captchaModal.classList.add('hidden');
-        runGeneration(token);
-      },
-      'expired-callback': () => {
-        captchaModal.classList.add('hidden');
-        generateBtn.disabled = false;
-        formError.textContent = 'CAPTCHA expired. Please try again.';
-      },
-      'error-callback': () => {
-        captchaModal.classList.add('hidden');
-        generateBtn.disabled = false;
-        formError.textContent = 'CAPTCHA could not be verified. Please try again.';
-      },
-    });
-  }
-
-  window.hcaptchaReady = () => {
-    captchaApiReady = true;
-    if (!window.HCAPTCHA_SITE_KEY) {
-      formError.textContent = 'CAPTCHA is not configured. Please contact the site owner.';
+      if (typeof hcaptcha!=='undefined' && captchaWidgetId!==null) hcaptcha.reset(captchaWidgetId);
     }
   };
 
-  generateBtn && generateBtn.addEventListener('click', () => {
-    formError.textContent = '';
-    if (!window.HCAPTCHA_SITE_KEY) {
-      formError.textContent = 'CAPTCHA is not configured. Please contact the site owner.';
-      return;
-    }
-    if (!captchaApiReady || typeof hcaptcha === 'undefined') {
-      formError.textContent = 'CAPTCHA is still loading. Please try again in a moment.';
-      return;
-    }
-    generateBtn.disabled = true;
-    captchaModal.classList.remove('hidden');
-    if (captchaWidgetId === null) {
-      window.requestAnimationFrame(() => {
-        if (!captchaModal.classList.contains('hidden')) renderCaptcha();
-      });
-    } else {
-      hcaptcha.reset(captchaWidgetId);
-    }
-  });
-
-  captchaCancel && captchaCancel.addEventListener('click', () => {
-    captchaModal.classList.add('hidden');
-    generateBtn.disabled = false;
-    if (typeof hcaptcha !== 'undefined' && captchaWidgetId !== null) {
-      hcaptcha.reset(captchaWidgetId);
-    }
-  });
-
-  document.getElementById('hcaptchaApi')?.addEventListener('error', () => {
-    formError.textContent = 'CAPTCHA failed to load. Check your connection and try again.';
-  });
+  regenImgBtn?.addEventListener('click', () => currentConcept && fetchImage(currentConcept.image_prompt||`Premium sneaker, ${currentConcept.name||'sneaker'}, studio, 8k`));
+  regenBtn?.addEventListener('click', () => { formError.textContent=''; setUI('empty'); currentConcept=null; document.querySelector('.form-panel')?.scrollIntoView({behavior:'smooth'}); });
 
 })();
