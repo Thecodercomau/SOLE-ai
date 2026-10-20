@@ -1,19 +1,24 @@
-import os, json, requests
+﻿"""Lesson 5 — Creating Sneaker Visuals and Design Variations
+Goal: SVG colorway explorer — switch tabs to recolor the sneaker live.
+AI image generates alongside the concept. History still empty (Lesson 6).
+Run: python app.py  →  visit http://localhost:5000
+"""
+import os, json, base64, requests
 from flask import Flask, render_template, request, jsonify
 from groq import Groq
 from dotenv import load_dotenv
 
 load_dotenv()
 app = Flask(__name__)
-app.secret_key = 'sneaker-studio-dev-key' 
-GROQ_API_KEY      = os.environ.get("GROQ_API_KEY")
-GROQ_MODEL        = os.environ.get("GROQ_MODEL", "")
-HCAPTCHA_SITE_KEY = os.environ.get("HCAPTCHA_SITE_KEY", "")
-HCAPTCHA_SECRET   = os.environ.get("HCAPTCHA_SECRET", "")
+app.secret_key = "sneaker-studio-dev-key"
+
+GROQ_API_KEY        = os.environ.get("GROQ_API_KEY", "")
+HF_API_KEY          = os.environ.get("HF_API_KEY", "")
+HCAPTCHA_SITE_KEY   = os.environ.get("HCAPTCHA_SITE_KEY", "10000000-ffff-ffff-ffff-000000000001")
+HCAPTCHA_SECRET     = os.environ.get("HCAPTCHA_SECRET",   "0x0000000000000000000000000000000000000000")
 HCAPTCHA_VERIFY_URL = "https://api.hcaptcha.com/siteverify"
-HF_API_KEY = os.environ.get("HF_API_KEY", "")
-HF_IMAGE_URL = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
-groq_client       = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+HF_IMAGE_URL        = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
+groq_client         = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 DESIGN_PROMPT = """You are an expert sneaker designer. Generate a detailed concept based on:
 Style: {style}, Primary Color: {primary_color}, Accent Color: {accent_color},
@@ -58,7 +63,7 @@ def generate_concept(prefs):
     if not groq_client:
         raise RuntimeError("GROQ_API_KEY not set.")
     chat = groq_client.chat.completions.create(
-        model=GROQ_MODEL,
+        model="openai/gpt-oss-120b",
         messages=[
             {"role": "system", "content": "Sneaker design expert. Pure JSON only."},
             {"role": "user",   "content": DESIGN_PROMPT.format(**prefs)},
@@ -110,6 +115,7 @@ def studio():
 
 @app.route("/history")
 def history():
+    # History persistence added in Lesson 6
     return render_template("history.html", designs=[])
 
 

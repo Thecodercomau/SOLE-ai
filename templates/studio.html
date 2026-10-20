@@ -227,8 +227,8 @@
 {% block scripts %}
 <script>
   // Make site key available to studio.js
-  window.HCAPTCHA_SITE_KEY = {{ hcaptcha_site_key|tojson }};
+  window.HCAPTCHA_SITE_KEY = "{{ hcaptcha_site_key }}";
 </script>
-<script id="hcaptchaApi" src="https://js.hcaptcha.com/1/api.js?render=explicit&onload=hcaptchaReady" defer></script>
 <script src="{{ url_for('static', filename='js/studio.js') }}"></script>
 {% endblock %}
+
