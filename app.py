@@ -17,7 +17,8 @@ HF_API_KEY          = os.environ.get("HF_API_KEY", "")
 HCAPTCHA_SITE_KEY   = os.environ.get("HCAPTCHA_SITE_KEY", "10000000-ffff-ffff-ffff-000000000001")
 HCAPTCHA_SECRET     = os.environ.get("HCAPTCHA_SECRET",   "0x0000000000000000000000000000000000000000")
 HCAPTCHA_VERIFY_URL = "https://api.hcaptcha.com/siteverify"
-HF_IMAGE_URL        = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
+HF_IMAGE_URL        = "https://router.huggingface.co/nscale/v1/images/generations"
+HF_IMAGE_MODEL      = "black-forest-labs/FLUX.1-schnell"
 groq_client         = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 DESIGN_PROMPT = """You are an expert sneaker designer. Generate a detailed concept based on:
@@ -83,12 +84,30 @@ def generate_sneaker_image(prompt):
     try:
         r = requests.post(HF_IMAGE_URL,
             headers={"Authorization": f"Bearer {HF_API_KEY}", "Content-Type": "application/json"},
-            json={"inputs": prompt}, timeout=60)
-        if r.status_code == 200 and r.headers.get("content-type", "").startswith("image"):
-            mime = r.headers["content-type"].split(";")[0].strip()
-            return f"data:{mime};base64,{base64.b64encode(r.content).decode()}"
-    except Exception:
-        pass
+            json={
+                "model": HF_IMAGE_MODEL,
+                "prompt": prompt,
+                "response_format": "b64_json",
+            },
+            timeout=60)
+    except requests.RequestException:
+        app.logger.exception("Hugging Face image generation request failed")
+        return None
+
+    if r.status_code == 200:
+        try:
+            image_data = r.json()["data"][0]["b64_json"]
+            base64.b64decode(image_data, validate=True)
+            return f"data:image/png;base64,{image_data}"
+        except (ValueError, KeyError, IndexError, TypeError):
+            app.logger.warning("Hugging Face image generation returned an invalid image response")
+            return None
+
+    app.logger.warning(
+        "Hugging Face image generation returned status %s with content type %s",
+        r.status_code,
+        r.headers.get("content-type", "unknown"),
+    )
     return None
 
 
@@ -154,5 +173,3 @@ def generate_image():
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
-
-
