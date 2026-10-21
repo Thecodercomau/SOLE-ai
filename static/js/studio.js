@@ -14,7 +14,7 @@
   const captchaModal = $('captchaModal'), captchaCancel = $('captchaCancel');
 
   const LOADER_MSGS = ['Querying AI…','Designing silhouette…','Choosing materials…','Mixing colorways…','Finalizing specs…'];
-  let loaderInterval = null, currentColorways = [], currentConcept = null, captchaWidgetId = null;
+  let loaderInterval = null, currentColorways = [], currentConcept = null, captchaWidgetId = null, currentHistoryId = null;
 
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
@@ -123,7 +123,7 @@
   const fetchImage = async prompt => {
     setStage('hf'); showImgLoading();
     try {
-      const r = await fetch('/generate-image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_prompt:prompt})});
+      const r = await fetch('/generate-image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_prompt:prompt,history_id:currentHistoryId})});
       const d = await r.json();
       if (!r.ok||d.error) throw new Error(d.error||'Image generation failed');
       showImgResult(d.image_url);
@@ -139,6 +139,7 @@
       const r = await fetch('/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...prefs,'h-captcha-response':token})});
       const d = await r.json();
       if (!r.ok||d.error) throw new Error(d.error||'Server error');
+      currentHistoryId = d.history_id || null;
       stopLoader(); renderConcept(d.concept); setUI('result');
       fetchImage(d.concept.image_prompt || `Premium ${prefs.style} sneaker, ${prefs.material}, studio photography, 8k`);
     } catch(e) {
@@ -150,6 +151,5 @@
   };
 
   regenImgBtn?.addEventListener('click', () => currentConcept && fetchImage(currentConcept.image_prompt||`Premium sneaker, ${currentConcept.name||'sneaker'}, studio, 8k`));
-  regenBtn?.addEventListener('click', () => { formError.textContent=''; setUI('empty'); currentConcept=null; document.querySelector('.form-panel')?.scrollIntoView({behavior:'smooth'}); });
-   regenBtn?.addEventListener('click', () => { formError.textContent=''; setUI('empty'); currentConcept=null; document.querySelector('.form-panel')?.scrollIntoView({behavior:'smooth'}); });
+  regenBtn?.addEventListener('click', () => { formError.textContent=''; setUI('empty'); currentConcept=null; currentHistoryId=null; document.querySelector('.form-panel')?.scrollIntoView({behavior:'smooth'}); });
 })();
