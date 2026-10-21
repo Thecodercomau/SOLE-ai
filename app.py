@@ -1,24 +1,25 @@
-﻿"""Lesson 5 — Creating Sneaker Visuals and Design Variations
-Goal: SVG colorway explorer — switch tabs to recolor the sneaker live.
-AI image generates alongside the concept. History still empty (Lesson 6).
+﻿"""Lesson 6 — Managing History and Finalizing the Sneaker Studio
+Goal: Session-based history — every design is saved, shown on /history,
+      with AI images, colorway swatches, and a Clear All button.
+      This is the complete, fully working app.
 Run: python app.py  →  visit http://localhost:5000
 """
-import os, json, base64, requests
-from flask import Flask, render_template, request, jsonify
+import os, json, uuid, base64, requests
+from datetime import datetime
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from groq import Groq
 from dotenv import load_dotenv
 
 load_dotenv()
 app = Flask(__name__)
-app.secret_key = "sneaker-studio-dev-key"
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "sneaker-studio-dev-key")
 
 GROQ_API_KEY        = os.environ.get("GROQ_API_KEY", "")
 HF_API_KEY          = os.environ.get("HF_API_KEY", "")
 HCAPTCHA_SITE_KEY   = os.environ.get("HCAPTCHA_SITE_KEY", "10000000-ffff-ffff-ffff-000000000001")
 HCAPTCHA_SECRET     = os.environ.get("HCAPTCHA_SECRET",   "0x0000000000000000000000000000000000000000")
 HCAPTCHA_VERIFY_URL = "https://api.hcaptcha.com/siteverify"
-HF_IMAGE_URL        = "https://router.huggingface.co/nscale/v1/images/generations"
-HF_IMAGE_MODEL      = "black-forest-labs/FLUX.1-schnell"
+HF_IMAGE_URL        = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
 groq_client         = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 DESIGN_PROMPT = """You are an expert sneaker designer. Generate a detailed concept based on:
@@ -84,30 +85,12 @@ def generate_sneaker_image(prompt):
     try:
         r = requests.post(HF_IMAGE_URL,
             headers={"Authorization": f"Bearer {HF_API_KEY}", "Content-Type": "application/json"},
-            json={
-                "model": HF_IMAGE_MODEL,
-                "prompt": prompt,
-                "response_format": "b64_json",
-            },
-            timeout=60)
-    except requests.RequestException:
-        app.logger.exception("Hugging Face image generation request failed")
-        return None
-
-    if r.status_code == 200:
-        try:
-            image_data = r.json()["data"][0]["b64_json"]
-            base64.b64decode(image_data, validate=True)
-            return f"data:image/png;base64,{image_data}"
-        except (ValueError, KeyError, IndexError, TypeError):
-            app.logger.warning("Hugging Face image generation returned an invalid image response")
-            return None
-
-    app.logger.warning(
-        "Hugging Face image generation returned status %s with content type %s",
-        r.status_code,
-        r.headers.get("content-type", "unknown"),
-    )
+            json={"inputs": prompt}, timeout=60)
+        if r.status_code == 200 and r.headers.get("content-type", "").startswith("image"):
+            mime = r.headers["content-type"].split(";")[0].strip()
+            return f"data:{mime};base64,{base64.b64encode(r.content).decode()}"
+    except Exception:
+        pass
     return None
 
 
@@ -122,6 +105,18 @@ def build_image_prompt(prefs):
     return prompt
 
 
+def save_to_history(concept, prefs, image_url=None):
+    session.setdefault("history", [])
+    entry = {
+        "id":        str(uuid.uuid4())[:8],
+        "timestamp": datetime.now().strftime("%b %d, %Y · %I:%M %p"),
+        "concept":   concept,
+        "prefs":     prefs,
+        "image_url": image_url,
+    }
+    session["history"] = ([entry] + session["history"])[:20]
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -134,8 +129,13 @@ def studio():
 
 @app.route("/history")
 def history():
-    # History persistence added in Lesson 6
-    return render_template("history.html", designs=[])
+    return render_template("history.html", designs=session.get("history", []))
+
+
+@app.route("/clear-history", methods=["POST"])
+def clear_history():
+    session.pop("history", None)
+    return redirect(url_for("history"))
 
 
 @app.route("/generate", methods=["POST"])
@@ -154,13 +154,15 @@ def generate():
     except Exception as e:
         return jsonify({"error": f"Concept generation failed: {e}"}), 500
     concept["image_prompt"] = build_image_prompt(prefs)
+    save_to_history(concept, prefs)
     return jsonify({"success": True, "concept": concept, "prefs": prefs})
 
 
 @app.route("/generate-image", methods=["POST"])
 def generate_image():
-    data   = request.get_json(silent=True) or {}
-    prompt = data.get("image_prompt", "")
+    data       = request.get_json(silent=True) or {}
+    prompt     = data.get("image_prompt", "")
+    history_id = data.get("history_id", "")
     if not prompt:
         return jsonify({"error": "No image prompt."}), 400
     if not HF_API_KEY:
@@ -168,8 +170,16 @@ def generate_image():
     image_url = generate_sneaker_image(prompt)
     if not image_url:
         return jsonify({"error": "Image generation failed. Try again."}), 500
+    if history_id and "history" in session:
+        for entry in session["history"]:
+            if entry["id"] == history_id:
+                entry["image_url"] = image_url
+                break
+        session.modified = True
     return jsonify({"success": True, "image_url": image_url})
 
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
+

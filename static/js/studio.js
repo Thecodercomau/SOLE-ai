@@ -151,5 +151,5 @@
 
   regenImgBtn?.addEventListener('click', () => currentConcept && fetchImage(currentConcept.image_prompt||`Premium sneaker, ${currentConcept.name||'sneaker'}, studio, 8k`));
   regenBtn?.addEventListener('click', () => { formError.textContent=''; setUI('empty'); currentConcept=null; document.querySelector('.form-panel')?.scrollIntoView({behavior:'smooth'}); });
-
+   regenBtn?.addEventListener('click', () => { formError.textContent=''; setUI('empty'); currentConcept=null; document.querySelector('.form-panel')?.scrollIntoView({behavior:'smooth'}); });
 })();

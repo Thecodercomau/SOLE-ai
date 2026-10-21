@@ -39,9 +39,9 @@
         --upper-color: {{ entry.concept.colorways[0].upper if entry.concept.colorways else '#00C3FF' }};
         --panel-color: {{ entry.concept.colorways[0].sole  if entry.concept.colorways else '#0096DC' }};
         --toe-color:   {{ entry.concept.colorways[0].upper if entry.concept.colorways else '#00AAF0' }};
-        --accent-color:{{ entry.concept.colorways[0].accent if entry.concept.colorways else '#EBC9A0' }};
+        --accent-color: {{ entry.concept.colorways[0].accent if entry.concept.colorways else '#EBC9A0' }};
         --lace-color:  {{ entry.concept.colorways[0].lace  if entry.concept.colorways else '#FAEBC8' }};
-        --midsole-color:{{ entry.concept.colorways[0].tongue if entry.concept.colorways else '#FAEBC8' }};
+        --midsole-color: {{ entry.concept.colorways[0].tongue if entry.concept.colorways else '#FAEBC8' }};
       ">
         {% if entry.image_url %}
           <div class="card-ai-img-wrap">
@@ -74,9 +74,9 @@
         <div class="card-colorways">
           {% for cw in entry.concept.colorways %}
           <div class="swatch-group" title="{{ cw.name }}">
-            <div class="swatch" style="background:{{ cw.upper }}"></div>
-            <div class="swatch" style="background:{{ cw.accent }}"></div>
-            <div class="swatch" style="background:{{ cw.sole }}"></div>
+            <div class="swatch" style="background: '{{cw.upper}}';"></div>
+            <div class="swatch" style="background: '{{cw.accent}}';"></div>
+            <div class="swatch" style="background: '{{cw.sole}}';"></div>
           </div>
           {% endfor %}
         </div>
